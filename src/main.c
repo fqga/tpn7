@@ -33,7 +33,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/** @file expropiativo.c
+/** @file main.c
  **
  ** @brief Ejemplo de un cambio de contexto expropiativo
  **
@@ -44,6 +44,7 @@
  **
  ** | RV | YYYY.MM.DD | Autor       | Descripción de los cambios              |
  ** |----|------------|-------------|-----------------------------------------|
+ ** |  5 | 2023.04.07 | fquiroga    | Añado tarea 3   |
  ** |  4 | 2021.10.29 | evolentini  | Simplificación usando naked functions   |
  ** |  3 | 2017.10.16 | evolentini  | Correción en el formato del archivo     |
  ** |  2 | 2017.09.21 | evolentini  | Cambio para utilizar drivers_bm de UNER |
@@ -66,7 +67,7 @@
 #define STACK_SIZE 256
 
 /** Cantidad de tareas */
-#define TASK_COUNT 2
+#define TASK_COUNT 3
 
 /** Valor de la cuenta para la función de espera */
 #define COUNT_DELAY 3000000
@@ -143,6 +144,9 @@ void TareaA(void);
 
 /** @brief Función que implementa la segunda tarea del sistema */
 void TareaB(void);
+
+/** @brief Función que implementa la tercera tarea del sistema */
+void TareaC(void);
 
 /* === Definiciones de variables internas ================================== */
 
@@ -222,6 +226,14 @@ void TareaB(void) {
     }
 }
 
+void TareaC(void) {
+    while (1) {
+        if (DigitalInputHasActivated(board->boton_cambiar)) {
+            DigitalOutputToggle(board->led_rojo);
+        }
+    }
+}
+
 /* === Definiciones de funciones externas ================================== */
 int main(void) {
     /* Configuración de los dispositivos de entrada/salida */
@@ -230,6 +242,7 @@ int main(void) {
     /* Creación de las tareas del sistema */
     CrearTarea(0, TareaA);
     CrearTarea(1, TareaB);
+    CrearTarea(2, TareaC);
 
     /* Configuración del SysTick para producir los cambios de contexto */
     SisTick_Init(5000);
