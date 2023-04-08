@@ -33,7 +33,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/** @file main.c
+/** @file expropiativo.c
  **
  ** @brief Ejemplo de un cambio de contexto expropiativo
  **
@@ -44,7 +44,7 @@
  **
  ** | RV | YYYY.MM.DD | Autor       | Descripción de los cambios              |
  ** |----|------------|-------------|-----------------------------------------|
- ** |  5 | 2023.04.07 | fquiroga    | Añado tarea 3   |
+ ** |  5 | 2023.04.07 | fquiroga    | Agrego tercera tarea modo colaborativo  |
  ** |  4 | 2021.10.29 | evolentini  | Simplificación usando naked functions   |
  ** |  3 | 2017.10.16 | evolentini  | Correción en el formato del archivo     |
  ** |  2 | 2017.09.21 | evolentini  | Cambio para utilizar drivers_bm de UNER |
@@ -77,27 +77,20 @@
 typedef uint8_t stack_t[STACK_SIZE];
 
 typedef struct context_s {
-    struct {
-        uint32_t r4;
-        uint32_t r5;
-        uint32_t r6;
-        uint32_t r7;
-        uint32_t r8;
-        uint32_t r9;
-        uint32_t r10;
-        uint32_t r11;
-        uint32_t lr;
-    } aditional;
-    struct {
-        uint32_t r0;
-        uint32_t r1;
-        uint32_t r2;
-        uint32_t r3;
-        uint32_t ip;
-        uint32_t lr;
-        uint32_t pc;
-        uint32_t xPSR;
-    } interrupt;
+    uint32_t r0;
+    uint32_t r1;
+    uint32_t r2;
+    uint32_t r3;
+    uint32_t r4;
+    uint32_t r5;
+    uint32_t r6;
+    uint32_t r7;
+    uint32_t r8;
+    uint32_t r9;
+    uint32_t r10;
+    uint32_t r11;
+    uint32_t ip;
+    uint32_t lr;
 } * context_t;
 
 /* === Declaraciones de funciones internas ================================= */
@@ -108,21 +101,13 @@ typedef struct context_s {
  */
 void Delay(void);
 
-/** @brief Funcion que configura el temporizador del sistema
- **
- ** Esta función configura el temporizador del sistema para generar una
- ** interrupcion periodica cada 2ms. Esta resulta la cuota de tiempo
- ** de procesador que se asigna a cada tarea.
- */
-void ConfigurarInterrupcion(void);
-
 /** @brief Funcion que implementa el cambio de contexto
  **
  ** Cada vez que se llama a la función la misma almacena el contexto de la
  ** tarea que la llama, selecciona a la otra tarea como activa y recupera
  ** el contexto de la misma.
  */
-void SysTick_Handler(void);
+void CambioContexto(void);
 
 /** @brief Funcion para configurar el contexto inicial de una tarea
  **
@@ -167,26 +152,26 @@ void Delay(void) {
     uint32_t i;
 
     for (i = COUNT_DELAY; i != 0; i--) {
-        __asm__("nop");
+        CambioContexto();
     }
 }
 
-__attribute__((naked(), optimize("O0"))) void SysTick_Handler(void) {
+__attribute__((naked(), optimize("O0"))) void CambioContexto(void) {
     static int divisor = 0;
     static int activa = TASK_COUNT;
 
-    __asm__("push {r4-r11, lr}");
+    __asm__("push {r0-r12, lr}");
     __asm__("str r13, %0" : "=m"(context[activa]));
     __asm__("ldr r13, %0" : : "m"(context[TASK_COUNT]));
 
     activa = (activa + 1) % TASK_COUNT;
-    divisor = (divisor + 1) % 1000;
+    divisor = (divisor + 1) % 100000;
     if (divisor == 0)
         DigitalOutputToggle(board->led_verde);
 
     __asm__("str r13, %0" : "=m"(context[TASK_COUNT]));
     __asm__("ldr r13, %0" : : "m"(context[activa]));
-    __asm__("pop {r4-r11, lr}");
+    __asm__("pop {r0-r12, lr}");
     __asm__("bx lr");
 }
 
@@ -195,11 +180,8 @@ void CrearTarea(int id, void * entry_point) {
     struct context_s * context_pointer = stack_pointer - sizeof(struct context_s);
 
     memset(context_pointer, 0, sizeof(struct context_s));
-    context_pointer->aditional.r7 = (uint32_t)(stack_pointer);
-    context_pointer->aditional.lr = 0xfffffff9;
-    context_pointer->interrupt.lr = (uint32_t)Error;
-    context_pointer->interrupt.xPSR = 0x01000000;
-    context_pointer->interrupt.pc = (uint32_t)entry_point;
+    context_pointer->r7 = (uint32_t)(stack_pointer);
+    context_pointer->lr = (uint32_t)entry_point;
     context[id] = (uint32_t)(context_pointer);
 }
 
@@ -216,6 +198,7 @@ void TareaA(void) {
         } else {
             DigitalOutputDeactivate(board->led_azul);
         }
+        CambioContexto();
     }
 }
 
@@ -231,6 +214,7 @@ void TareaC(void) {
         if (DigitalInputHasActivated(board->boton_cambiar)) {
             DigitalOutputToggle(board->led_rojo);
         }
+        CambioContexto();
     }
 }
 
@@ -244,12 +228,8 @@ int main(void) {
     CrearTarea(1, TareaB);
     CrearTarea(2, TareaC);
 
-    /* Configuración del SysTick para producir los cambios de contexto */
-    SisTick_Init(5000);
-
-    /* Espera de la primera interupción para arrancar el sistema */
-    while (1) {
-    };
+    /* Arranque del sistema cooperativo */
+    CambioContexto();
 
     return 0;
 }
